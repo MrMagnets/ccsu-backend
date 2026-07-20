@@ -1,12 +1,11 @@
-FROM python:3.11-slim
+FROM nixos/nix:latest AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y g++ && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
 COPY . .
+
+RUN nix-env -iA nixpkgs.python311 nixpkgs.python311Packages.pip nixpkgs.gcc
+
+RUN pip install -r requirements.txt
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
