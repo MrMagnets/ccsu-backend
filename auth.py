@@ -13,7 +13,9 @@ SECRET_KEY = "ccsu-competition-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24小时
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 改用 pbkdf2_sha256（兼容 Python 3.13，无需 bcrypt）
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
 security = HTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

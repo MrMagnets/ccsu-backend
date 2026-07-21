@@ -1,6 +1,6 @@
 import asyncio
 import threading
-import queue as q
+import queue as q  # ← 注意这里改成 q
 from typing import Dict, Any
 import json
 from datetime import datetime
@@ -10,8 +10,8 @@ from models import Submission, TestCase, Problem, User
 from compiler import compile_and_run, CompilationResult
 
 # 全局任务队列
-task_queue = q.Queue()
-task_results = {}  # 存储任务结果，用于轮询
+task_queue = q.Queue()  # ← 改成 q.Queue()
+task_results = {}
 
 class CompileTask:
     def __init__(self, submission_id: int, code: str, problem_id: int, user_id: int):
@@ -19,7 +19,7 @@ class CompileTask:
         self.code = code
         self.problem_id = problem_id
         self.user_id = user_id
-        self.status = "pending"  # pending, running, finished, error
+        self.status = "pending"
         self.result = None
         self.created_at = datetime.utcnow()
 
@@ -34,7 +34,7 @@ def process_queue_worker():
             process_task(task)
             task_queue.task_done()
             
-        except q.Empty:
+        except q.Empty:  # ← 改成 q.Empty
             continue
         except Exception as e:
             print(f"队列处理错误: {e}")
@@ -43,13 +43,11 @@ def process_task(task: CompileTask):
     """处理单个编译任务"""
     db = SessionLocal()
     try:
-        # 更新状态为运行中
         submission = db.query(Submission).filter(Submission.id == task.submission_id).first()
         if submission:
             submission.status = "compiling"
             db.commit()
         
-        # 获取测试用例
         testcases = db.query(TestCase).filter(TestCase.problem_id == task.problem_id).order_by(TestCase.order).all()
         problem = db.query(Problem).filter(Problem.id == task.problem_id).first()
         
@@ -59,7 +57,6 @@ def process_task(task: CompileTask):
             db.commit()
             return
         
-        # 准备测试用例数据
         tc_data = [
             {"input": tc.input_data, "expected": tc.expected_output}
             for tc in testcases
@@ -68,24 +65,18 @@ def process_task(task: CompileTask):
         time_limit = problem.time_limit if problem else 1000
         memory_limit = problem.memory_limit if problem else 256
         
-        # 编译并运行
         result = compile_and_run(task.code, tc_data, time_limit, memory_limit)
         
-        # 更新提交记录
         if submission:
             if result.success:
-                # 计算总分（按测试用例得分）
                 total_score = 0
                 if result.test_results:
-                    # 计算加权得分
                     for i, tc_result in enumerate(result.test_results):
                         if i < len(testcases):
                             tc = testcases[i]
                             if tc_result.get("passed", False):
                                 total_score += tc.score
-                            # 保存每个用例的详细结果
                     
-                    # 归一化到题目总分
                     max_score = sum(tc.score for tc in testcases)
                     if max_score > 0:
                         final_score = (total_score / max_score) * problem.total_score

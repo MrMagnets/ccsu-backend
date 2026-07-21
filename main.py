@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 from sqlalchemy.orm import Session
 
-from database import init_db, get_db, SessionLocal
+from database import init_db, get_db, SessionLocal  # ← 确保 SessionLocal 已导入
 from models import User, UserRole, Problem, TestCase, Submission
 from auth import (
     get_password_hash, create_access_token, get_current_user,
@@ -16,7 +16,7 @@ from auth import (
 from compiler import compile_with_wasm
 from task_queue import submit_compile_task
 
-app = FastAPI(title="CCSU 编程竞赛平台", version="1.0.0")
+app = FastAPI(title="CCSU 编程竞赛平台", version="1.5.1 Pre1")
 
 # CORS 配置
 app.add_middleware(
@@ -57,7 +57,7 @@ class ProblemCreate(BaseModel):
     time_limit: int = 1000
     memory_limit: int = 256
     total_score: float = 100.0
-    testcases: List[dict] = []  # [{"input": "...", "output": "...", "score": 10}]
+    testcases: List[dict] = []
 
 class ProblemUpdate(BaseModel):
     title: Optional[str] = None
@@ -74,7 +74,7 @@ class ProblemUpdate(BaseModel):
 class CodeSubmit(BaseModel):
     code: str
     problem_id: int
-    compiler: str = "g++"  # "g++" or "wasm"
+    compiler: str = "g++"
 
 class SubmissionResponse(BaseModel):
     id: int
@@ -92,12 +92,10 @@ class SubmissionResponse(BaseModel):
 @app.post("/api/register", response_model=TokenResponse)
 def register(user: UserRegister, db: Session = Depends(get_db)):
     """用户注册"""
-    # 检查用户名是否已存在
     existing = db.query(User).filter(User.username == user.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="用户名已存在")
     
-    # 创建用户（默认角色为选手）
     hashed_password = get_password_hash(user.password)
     new_user = User(
         username=user.username,
@@ -108,7 +106,6 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    # 生成 token
     token = create_access_token({"sub": str(new_user.id), "role": new_user.role.value})
     
     return TokenResponse(
@@ -220,7 +217,6 @@ def create_problem(
     db.add(new_problem)
     db.flush()
     
-    # 添加测试用例
     for i, tc in enumerate(problem.testcases):
         testcase = TestCase(
             problem_id=new_problem.id,
@@ -244,21 +240,17 @@ def update_problem(
     current_user: User = Depends(require_judge_or_admin),
     db: Session = Depends(get_db)
 ):
-    """更新题目（管理员/裁判）- 全局实时同步"""
+    """更新题目（管理员/裁判）"""
     db_problem = db.query(Problem).filter(Problem.id == problem_id).first()
     if not db_problem:
         raise HTTPException(status_code=404, detail="题目不存在")
     
-    # 更新题目基本信息
     for field, value in problem.dict(exclude_unset=True).items():
         if field != "testcases" and value is not None:
             setattr(db_problem, field, value)
     
-    # 更新测试用例（如果提供）
     if problem.testcases is not None:
-        # 删除旧的测试用例
         db.query(TestCase).filter(TestCase.problem_id == problem_id).delete()
-        # 添加新的测试用例
         for i, tc in enumerate(problem.testcases):
             testcase = TestCase(
                 problem_id=problem_id,
@@ -286,9 +278,7 @@ def delete_problem(
     if not problem:
         raise HTTPException(status_code=404, detail="题目不存在")
     
-    # 删除关联的测试用例
     db.query(TestCase).filter(TestCase.problem_id == problem_id).delete()
-    # 删除题目
     db.delete(problem)
     db.commit()
     
@@ -303,12 +293,10 @@ def submit_code(
     db: Session = Depends(get_db)
 ):
     """提交代码 - 入队编译"""
-    # 检查题目是否存在
     problem = db.query(Problem).filter(Problem.id == submission.problem_id).first()
     if not problem:
         raise HTTPException(status_code=404, detail="题目不存在")
     
-    # 创建提交记录
     new_submission = Submission(
         user_id=current_user.id,
         problem_id=submission.problem_id,
@@ -320,9 +308,7 @@ def submit_code(
     db.commit()
     db.refresh(new_submission)
     
-    # 判断使用哪种编译器
     if submission.compiler == "wasm":
-        # WASM 模式：仅保存，前端自行编译
         new_submission.status = "pending_wasm"
         db.commit()
         return {
@@ -331,7 +317,6 @@ def submit_code(
             "message": "代码已提交，请在前端使用 WASM 编译"
         }
     else:
-        # G++ 模式：入队
         submit_compile_task(new_submission.id, submission.code, submission.problem_id, current_user.id)
         return {
             "submission_id": new_submission.id,
@@ -350,7 +335,6 @@ def get_submission(
     if not submission:
         raise HTTPException(status_code=404, detail="提交不存在")
     
-    # 权限检查：只能查看自己的提交，或是管理员/裁判
     if submission.user_id != current_user.id and current_user.role not in [UserRole.ADMIN, UserRole.JUDGE]:
         raise HTTPException(status_code=403, detail="无权查看此提交")
     
@@ -381,7 +365,6 @@ def get_submissions(
     """获取提交列表（分页）"""
     query = db.query(Submission)
     
-    # 权限过滤
     if current_user.role not in [UserRole.ADMIN, UserRole.JUDGE]:
         query = query.filter(Submission.user_id == current_user.id)
     
@@ -393,7 +376,6 @@ def get_submissions(
     total = query.count()
     submissions = query.order_by(Submission.submitted_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     
-    # 获取用户和题目信息
     result = []
     for sub in submissions:
         user = db.query(User).filter(User.id == sub.user_id).first()
@@ -435,12 +417,10 @@ def get_rankings(
     if problem_id:
         query = query.filter(Submission.problem_id == problem_id)
     
-    # 只统计已完成的提交
     query = query.filter(Submission.status == "finished")
     
     results = query.group_by(Submission.user_id, User.username, User.role).all()
     
-    # 排序：总分降序，最后提交时间升序（早提交优先）
     sorted_results = sorted(
         results,
         key=lambda x: (-x.total_score, x.last_submit)
@@ -475,12 +455,11 @@ def wasm_compile_check(data: dict, current_user: User = Depends(require_any_user
 @app.on_event("startup")
 def startup_event():
     """启动时初始化管理员账号"""
+    from auth import get_password_hash
     db = SessionLocal()
     try:
-        # 检查是否存在管理员
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
-            from auth import get_password_hash
             admin_user = User(
                 username="admin",
                 password_hash=get_password_hash("admin123"),
@@ -490,10 +469,8 @@ def startup_event():
             db.commit()
             print("✅ 管理员账号已创建: admin / admin123")
         
-        # 检查是否有默认题目
         problem_count = db.query(Problem).count()
         if problem_count == 0:
-            # 创建示例题目
             default_problem = Problem(
                 title="A + B 问题",
                 description="计算两个整数的和。\n\n## 输入格式\n两个整数 a 和 b，用空格分隔。\n\n## 输出格式\n输出 a + b 的结果。",
@@ -508,7 +485,6 @@ def startup_event():
             db.add(default_problem)
             db.flush()
             
-            # 添加测试用例
             testcases = [
                 {"input": "1 2", "output": "3", "score": 25, "is_sample": True},
                 {"input": "0 0", "output": "0", "score": 25, "is_sample": False},
@@ -535,7 +511,7 @@ def startup_event():
     finally:
         db.close()
 
-
+# ============ 启动 ============
 if __name__ == "__main__":
     import uvicorn
     import os
