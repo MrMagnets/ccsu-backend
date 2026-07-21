@@ -6,6 +6,7 @@ from typing import Optional, List
 from datetime import datetime
 import json
 from sqlalchemy.orm import Session
+from sqlalchemy import func  # ← 添加这行！
 
 from database import init_db, get_db, SessionLocal
 from models import User, UserRole, Problem, TestCase, Submission
@@ -16,7 +17,7 @@ from auth import (
 from compiler import compile_with_wasm
 from task_queue import submit_compile_task
 
-app = FastAPI(title="CCSU 编程竞赛平台", version="1.5.1 Pre1")
+app = FastAPI(title="CCSU 编程竞赛平台", version="1.5.1")
 
 # CORS 配置
 app.add_middleware(
@@ -112,7 +113,6 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     
-    from auth import verify_password
     if not verify_password(user.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     
@@ -399,8 +399,8 @@ def get_rankings(
         Submission.user_id,
         User.username,
         User.role,
-        db.func.sum(Submission.score).label("total_score"),
-        db.func.max(Submission.submitted_at).label("last_submit")
+        func.sum(Submission.score).label("total_score"),  # ← 已修复
+        func.max(Submission.submitted_at).label("last_submit")  # ← 已修复
     ).join(User, User.id == Submission.user_id)
     
     if problem_id:
@@ -444,7 +444,6 @@ def wasm_compile_check(data: dict, current_user: User = Depends(require_any_user
 @app.on_event("startup")
 def startup_event():
     """启动时初始化管理员账号"""
-    from auth import get_password_hash
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.username == "admin").first()
