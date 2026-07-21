@@ -15,7 +15,7 @@ from auth import (
 )
 from compiler import compile_with_wasm
 from task_queue import submit_compile_task
-
+import pydantic
 app = FastAPI(title="CCSU 编程竞赛平台", version="1.5.1 Pre1")
 
 # CORS 配置
