@@ -14,7 +14,7 @@ from auth import (
     require_any_user, require_judge_or_admin, require_admin
 )
 from compiler import compile_with_wasm
-from queue import submit_compile_task
+from task_queue import submit_compile_task
 
 app = FastAPI(title="CCSU 编程竞赛平台", version="1.0.0")
 

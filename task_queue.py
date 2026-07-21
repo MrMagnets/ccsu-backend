@@ -1,6 +1,6 @@
 import asyncio
 import threading
-import queue
+import queue as q  # 或者 from queue import Queue
 from typing import Dict, Any
 import json
 from datetime import datetime
