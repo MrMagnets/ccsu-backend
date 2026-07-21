@@ -11,10 +11,10 @@ from models import User, UserRole
 # 配置
 SECRET_KEY = "ccsu-competition-secret-key-change-in-production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24小时
 
-# 改用 pbkdf2_sha256（兼容 Python 3.13，无需 bcrypt）
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+# 使用 bcrypt（Python 3.13 兼容版 4.2.0+）
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 security = HTTPBearer()
 
@@ -23,8 +23,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
-
-# ... 其余代码保持不变
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()

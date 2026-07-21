@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 from sqlalchemy.orm import Session
 
-from database import init_db, get_db, SessionLocal  # ← 确保 SessionLocal 已导入
+from database import init_db, get_db, SessionLocal
 from models import User, UserRole, Problem, TestCase, Submission
 from auth import (
     get_password_hash, create_access_token, get_current_user,
@@ -15,7 +15,7 @@ from auth import (
 )
 from compiler import compile_with_wasm
 from task_queue import submit_compile_task
-import pydantic
+
 app = FastAPI(title="CCSU 编程竞赛平台", version="1.5.1 Pre1")
 
 # CORS 配置
@@ -75,17 +75,6 @@ class CodeSubmit(BaseModel):
     code: str
     problem_id: int
     compiler: str = "g++"
-
-class SubmissionResponse(BaseModel):
-    id: int
-    problem_id: int
-    problem_title: str
-    username: str
-    code: str
-    status: str
-    score: float
-    compile_output: Optional[str]
-    submitted_at: str
 
 # ============ 用户 API ============
 
@@ -405,7 +394,7 @@ def get_rankings(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """获取排名列表 - 按得分排序，同分按提交时间早优先"""
+    """获取排名列表"""
     query = db.query(
         Submission.user_id,
         User.username,

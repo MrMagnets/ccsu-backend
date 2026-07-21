@@ -1,6 +1,6 @@
 import asyncio
 import threading
-import queue as q  # ← 注意这里改成 q
+import queue as q
 from typing import Dict, Any
 import json
 from datetime import datetime
@@ -10,7 +10,7 @@ from models import Submission, TestCase, Problem, User
 from compiler import compile_and_run, CompilationResult
 
 # 全局任务队列
-task_queue = q.Queue()  # ← 改成 q.Queue()
+task_queue = q.Queue()
 task_results = {}
 
 class CompileTask:
@@ -34,7 +34,7 @@ def process_queue_worker():
             process_task(task)
             task_queue.task_done()
             
-        except q.Empty:  # ← 改成 q.Empty
+        except q.Empty:
             continue
         except Exception as e:
             print(f"队列处理错误: {e}")
