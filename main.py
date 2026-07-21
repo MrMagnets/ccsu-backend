@@ -7,7 +7,7 @@ from datetime import datetime
 import json
 from sqlalchemy.orm import Session
 
-from database import init_db, get_db
+from database import init_db, get_db, SessionLocal
 from models import User, UserRole, Problem, TestCase, Submission
 from auth import (
     get_password_hash, create_access_token, get_current_user,
